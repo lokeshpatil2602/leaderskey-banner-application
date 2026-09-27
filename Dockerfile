@@ -1,21 +1,22 @@
-# Multi-stage production Dockerfile for Banner Application Backend (inside Backend/ directory)
+# Multi-stage production Dockerfile for Backend from repository root
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Install dependencies needed for build
-COPY package*.json ./
-COPY tsconfig.json ./
+# Copy package manifests and tsconfig from Backend directory
+COPY Backend/package*.json ./
+COPY Backend/tsconfig.json ./
 
+# Clean install all dependencies (including devDependencies needed for build)
 RUN npm ci
 
-# Copy source code
-COPY src ./src
+# Copy Backend source code
+COPY Backend/src ./src
 
-# Build TypeScript to dist/
+# Build TypeScript into dist/
 RUN npm run build
 
-# Prune dev dependencies for production runtime
+# Prune devDependencies to keep only production modules
 RUN npm prune --production
 
 # Stage 2: Production runtime stage
@@ -26,11 +27,11 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=5000
 
-# Security: run as non-root node user
+# Security: non-root user
 USER node
 
-# Copy production node_modules and compiled output
-COPY --chown=node:node package*.json ./
+# Copy production package manifests, pruned node_modules, and compiled dist/
+COPY --chown=node:node Backend/package*.json ./
 COPY --chown=node:node --from=builder /app/node_modules ./node_modules
 COPY --chown=node:node --from=builder /app/dist ./dist
 
