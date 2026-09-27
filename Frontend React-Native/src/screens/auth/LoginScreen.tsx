@@ -24,6 +24,7 @@ export function LoginScreen({ onLogin, onSwitchToRegister, isSubmitting = false,
         onChangeText={setEmail}
         placeholder={t('email')}
         autoCapitalize="none"
+        autoCorrect={false}
         keyboardType="email-address"
         style={styles.input}
       />
@@ -32,6 +33,8 @@ export function LoginScreen({ onLogin, onSwitchToRegister, isSubmitting = false,
         value={password}
         onChangeText={setPassword}
         placeholder={t('password')}
+        autoCapitalize="none"
+        autoCorrect={false}
         secureTextEntry
         style={styles.input}
       />
@@ -40,7 +43,7 @@ export function LoginScreen({ onLogin, onSwitchToRegister, isSubmitting = false,
 
       <Pressable
         style={[styles.button, isSubmitting && styles.buttonDisabled]}
-        onPress={() => onLogin(email, password)}
+        onPress={() => onLogin(email.trim(), password)}
         disabled={isSubmitting}
       >
         <Text style={styles.buttonText}>{isSubmitting ? t('signingIn') : t('login')}</Text>

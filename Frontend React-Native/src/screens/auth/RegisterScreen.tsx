@@ -20,12 +20,20 @@ export function RegisterScreen({ onRegister, onSwitchToLogin, isSubmitting = fal
       <Text style={styles.title}>{t('createAccount')}</Text>
       <Text style={styles.subtitle}>{t('startWithDetails')}</Text>
 
-      <TextInput value={name} onChangeText={setName} placeholder={t('fullName')} style={styles.input} />
+      <TextInput
+        value={name}
+        onChangeText={setName}
+        placeholder={t('fullName')}
+        autoCapitalize="words"
+        autoCorrect={false}
+        style={styles.input}
+      />
       <TextInput
         value={email}
         onChangeText={setEmail}
         placeholder={t('email')}
         autoCapitalize="none"
+        autoCorrect={false}
         keyboardType="email-address"
         style={styles.input}
       />
@@ -33,6 +41,8 @@ export function RegisterScreen({ onRegister, onSwitchToLogin, isSubmitting = fal
         value={password}
         onChangeText={setPassword}
         placeholder={t('password')}
+        autoCapitalize="none"
+        autoCorrect={false}
         secureTextEntry
         style={styles.input}
       />
@@ -41,7 +51,7 @@ export function RegisterScreen({ onRegister, onSwitchToLogin, isSubmitting = fal
 
       <Pressable
         style={[styles.button, isSubmitting && styles.buttonDisabled]}
-        onPress={() => onRegister(name, email, password)}
+        onPress={() => onRegister(name.trim(), email.trim(), password)}
         disabled={isSubmitting}
       >
         <Text style={styles.buttonText}>{isSubmitting ? t('creatingAccount') : t('register')}</Text>
