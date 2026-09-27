@@ -2,8 +2,7 @@ services:
   - type: web
     name: banner-app-backend
     runtime: docker
-    rootDir: Backend
-    dockerfilePath: Dockerfile
+    dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /health
     autoDeploy: true

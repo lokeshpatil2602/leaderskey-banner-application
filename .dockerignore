@@ -12,4 +12,5 @@ yarn-debug.log*
 coverage
 .DS_Store
 Thumbs.db
+Frontend*
 Frontend React-Native
