@@ -33,7 +33,8 @@ export const connectDatabase = async (): Promise<void> => {
 
   try {
     await mongoose.connect(env.MONGODB_URI, {
-      serverSelectionTimeoutMS: 10000
+      serverSelectionTimeoutMS: 10000,
+      authSource: 'admin'
     });
 
     console.log('MongoDB connected successfully');

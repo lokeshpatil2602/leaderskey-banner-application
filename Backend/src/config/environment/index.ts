@@ -4,18 +4,20 @@ dotenv.config();
 
 const nodeEnv = (process.env.NODE_ENV ?? 'development').trim();
 const isProd = nodeEnv === 'production';
+const rawMongoUri = process.env.MONGODB_URI?.trim().replace(/^['"]|['"]$/g, '');
+const rawJwtSecret = process.env.JWT_SECRET?.trim().replace(/^['"]|['"]$/g, '');
 
 export const env = {
   HOST: (process.env.HOST ?? '0.0.0.0').trim(),
   PORT: Number(process.env.PORT ?? 5000),
   NODE_ENV: nodeEnv,
-  MONGODB_URI: process.env.MONGODB_URI?.trim() || (isProd ? '' : 'mongodb://127.0.0.1:27017/banner_app'),
-  JWT_SECRET: process.env.JWT_SECRET?.trim() || (isProd ? '' : 'development_secret_change_me'),
+  MONGODB_URI: rawMongoUri || (isProd ? '' : 'mongodb://127.0.0.1:27017/banner_app'),
+  JWT_SECRET: rawJwtSecret || (isProd ? '' : 'development_secret_change_me'),
   JWT_EXPIRES_IN: (process.env.JWT_EXPIRES_IN ?? '7d').trim(),
   CLIENT_URL: (process.env.CLIENT_URL ?? '*').trim(),
-  CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME?.trim(),
-  CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY?.trim(),
-  CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET?.trim()
+  CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME?.trim().replace(/^['"]|['"]$/g, ''),
+  CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY?.trim().replace(/^['"]|['"]$/g, ''),
+  CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET?.trim().replace(/^['"]|['"]$/g, '')
 };
 
 export const isProduction = env.NODE_ENV === 'production';
