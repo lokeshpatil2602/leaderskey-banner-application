@@ -5,7 +5,7 @@ export type ApiResponse<T> = T;
 export const apiRequest = async <T>(path: string, options: RequestInit = {}): Promise<T> => {
   const baseUrl = getApiBaseUrl();
   const controller = new AbortController();
-  const timeoutMs = 10000;
+  const timeoutMs = 60000; // 60s timeout to support Render cold starts seamlessly
 
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
