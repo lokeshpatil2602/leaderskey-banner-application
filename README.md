@@ -86,25 +86,37 @@ npx expo start
 
 ## 4. Render Backend Deployment
 
-1. Create a new **Web Service** on [Render](https://render.com).
-2. Connect your Git repository.
-3. Configure the service settings:
+### Option A: Using Docker Runtime (Recommended)
+1. Create a new **Web Service** on [Render](https://render.com) connecting this repository.
+2. Configure settings:
+   - **Language / Runtime**: `Docker`
    - **Root Directory**: `Backend`
-   - **Environment**: `Node`
-   - **Build Command**: `npm install && npm run build`
-   - **Start Command**: `npm start`
+   - **Dockerfile Path**: `Dockerfile`
+   - **Docker Context**: `.`
    - **Health Check Path**: `/health`
-4. Add Environment Variables in Render Dashboard:
-   - `NODE_ENV`: `production`
-   - `MONGODB_URI`: `<Your MongoDB Atlas Connection String>`
-   - `JWT_SECRET`: `<Your Production JWT Secret>`
-   - `PORT`: `5000` (or leave default for Render to assign)
-   - `CLIENT_URL`: `*`
-5. Deploy and verify health check:
-   ```bash
-   curl https://your-render-service.onrender.com/health
-   # Expected response: {"status":"ok","message":"Banner Application backend is healthy",...}
-   ```
+
+### Option B: Using Node Runtime
+- **Root Directory**: `Backend`
+- **Environment**: `Node`
+- **Build Command**: `npm install && npm run build`
+- **Start Command**: `npm start`
+- **Health Check Path**: `/health`
+
+### Environment Variables required in Render Dashboard:
+- `NODE_ENV`: `production`
+- `CLIENT_URL`: `*`
+- `MONGODB_URI`: `<Your MongoDB Atlas Connection String>`
+- `JWT_SECRET`: `<Your Production JWT Secret>`
+- `JWT_EXPIRES_IN`: `7d`
+- `CLOUDINARY_CLOUD_NAME`: `<Your Cloudinary Cloud Name>`
+- `CLOUDINARY_API_KEY`: `<Your Cloudinary API Key>`
+- `CLOUDINARY_API_SECRET`: `<Your Cloudinary API Secret>`
+- `CLOUDINARY_UPLOAD_FOLDER`: `banner-app`
+
+Verify deployment health:
+```bash
+curl https://your-render-service.onrender.com/health
+```
 
 ---
 
