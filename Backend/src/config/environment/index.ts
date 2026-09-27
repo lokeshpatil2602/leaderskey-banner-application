@@ -1,0 +1,51 @@
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+export const env = {
+  HOST: (process.env.HOST ?? '0.0.0.0').trim(),
+  PORT: Number(process.env.PORT ?? 5000),
+  NODE_ENV: (process.env.NODE_ENV ?? 'development').trim(),
+  MONGODB_URI: (process.env.MONGODB_URI ?? 'mongodb://127.0.0.1:27017/banner_app').trim(),
+  JWT_SECRET: (process.env.JWT_SECRET ?? 'development_secret_change_me').trim(),
+  JWT_EXPIRES_IN: (process.env.JWT_EXPIRES_IN ?? '7d').trim(),
+  CLIENT_URL: (process.env.CLIENT_URL ?? '*').trim(),
+  CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME?.trim(),
+  CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY?.trim(),
+  CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET?.trim()
+};
+
+export const isProduction = env.NODE_ENV === 'production';
+
+export const getAllowedOrigins = (): string[] => {
+  if (env.CLIENT_URL === '*') {
+    return ['*'];
+  }
+  return env.CLIENT_URL.split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+};
+
+export const validateEnvironment = (): void => {
+  const issues: string[] = [];
+
+  if (!Number.isInteger(env.PORT) || env.PORT <= 0) {
+    issues.push('PORT must be a valid integer greater than 0');
+  }
+
+  if (!env.NODE_ENV) {
+    issues.push('NODE_ENV is required');
+  }
+
+  if (isProduction && !process.env.JWT_SECRET) {
+    issues.push('JWT_SECRET must be set securely in production');
+  }
+
+  if (isProduction && !process.env.MONGODB_URI) {
+    issues.push('MONGODB_URI is required in production');
+  }
+
+  if (issues.length > 0) {
+    throw new Error(`Invalid environment configuration: ${issues.join('; ')}`);
+  }
+};

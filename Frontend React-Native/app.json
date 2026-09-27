@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "BannerAppFrontend",
+    "slug": "banner-app-frontend",
+    "version": "1.0.0",
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
+    "icon": "./assets/icon.png",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "android": {
+      "package": "com.example.bannerapp"
+    },
+    "ios": {
+      "bundleIdentifier": "com.example.bannerapp"
+    },
+    "extra": {
+      "EXPO_PUBLIC_API_URL": "${EXPO_PUBLIC_API_URL}",
+      "eas": {
+        "projectId": "833a5fce-22cd-4d39-848d-4634cb203868"
+      }
+    }
+  }
+}

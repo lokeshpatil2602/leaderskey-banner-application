@@ -1,0 +1,50 @@
+{
+  "name": "banner-app-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "dev": "nodemon --watch src --exec ts-node src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "seed": "ts-node scripts/seed.ts",
+    "bootstrap:super-admin": "ts-node scripts/bootstrap-super-admin.ts",
+    "test:rbac": "ts-node scripts/test-role-authorization.ts"
+  },
+  "dependencies": {
+    "@types/express-validator": "^2.20.33",
+    "@types/morgan": "^1.9.10",
+    "@types/swagger-ui-express": "^4.1.8",
+    "@types/winston": "^2.4.4",
+    "bcryptjs": "^2.4.3",
+    "cloudinary": "^1.41.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "express-rate-limit": "^8.7.0",
+    "express-validator": "^7.3.2",
+    "helmet": "^7.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.8.0",
+    "morgan": "^1.12.1",
+    "multer": "^2.4.0",
+    "node-fetch": "^2.7.0",
+    "prom-client": "^15.1.3",
+    "streamifier": "^0.1.1",
+    "swagger-ui-express": "^5.0.1",
+    "winston": "^3.19.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.4",
+    "@types/cors": "^2.8.5",
+    "@types/express": "^5.0.0",
+    "@types/express-rate-limit": "^5.1.3",
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/multer": "^2.2.0",
+    "@types/node": "^22.20.4",
+    "mongodb-memory-server": "^10.0.0",
+    "nodemon": "^3.1.14",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.2"
+  }
+}
