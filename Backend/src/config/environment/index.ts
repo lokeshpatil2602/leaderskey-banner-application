@@ -2,12 +2,15 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+const nodeEnv = (process.env.NODE_ENV ?? 'development').trim();
+const isProd = nodeEnv === 'production';
+
 export const env = {
   HOST: (process.env.HOST ?? '0.0.0.0').trim(),
   PORT: Number(process.env.PORT ?? 5000),
-  NODE_ENV: (process.env.NODE_ENV ?? 'development').trim(),
-  MONGODB_URI: (process.env.MONGODB_URI ?? 'mongodb://127.0.0.1:27017/banner_app').trim(),
-  JWT_SECRET: (process.env.JWT_SECRET ?? 'development_secret_change_me').trim(),
+  NODE_ENV: nodeEnv,
+  MONGODB_URI: process.env.MONGODB_URI?.trim() || (isProd ? '' : 'mongodb://127.0.0.1:27017/banner_app'),
+  JWT_SECRET: process.env.JWT_SECRET?.trim() || (isProd ? '' : 'development_secret_change_me'),
   JWT_EXPIRES_IN: (process.env.JWT_EXPIRES_IN ?? '7d').trim(),
   CLIENT_URL: (process.env.CLIENT_URL ?? '*').trim(),
   CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME?.trim(),
@@ -37,12 +40,15 @@ export const validateEnvironment = (): void => {
     issues.push('NODE_ENV is required');
   }
 
-  if (isProduction && !process.env.JWT_SECRET) {
-    issues.push('JWT_SECRET must be set securely in production');
-  }
-
-  if (isProduction && !process.env.MONGODB_URI) {
-    issues.push('MONGODB_URI is required in production');
+  if (isProduction) {
+    if (!env.JWT_SECRET) {
+      issues.push('JWT_SECRET must be set in production environment variables');
+    }
+    if (!env.MONGODB_URI) {
+      issues.push('MONGODB_URI is required in production (MongoDB Atlas connection string must be configured in Render Environment Variables)');
+    } else if (env.MONGODB_URI.includes('localhost') || env.MONGODB_URI.includes('127.0.0.1')) {
+      issues.push('MONGODB_URI in production must point to MongoDB Atlas, not localhost or 127.0.0.1');
+    }
   }
 
   if (issues.length > 0) {

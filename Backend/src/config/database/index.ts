@@ -24,13 +24,16 @@ export const getDatabaseStatus = (): DatabaseStatus => {
 
 export const connectDatabase = async (): Promise<void> => {
   if (!env.MONGODB_URI) {
+    if (env.NODE_ENV === 'production') {
+      throw new Error('MONGODB_URI environment variable is required in production.');
+    }
     console.warn('MONGODB_URI is not set. Database connection skipped for this environment.');
     return;
   }
 
   try {
     await mongoose.connect(env.MONGODB_URI, {
-      serverSelectionTimeoutMS: 5000
+      serverSelectionTimeoutMS: 10000
     });
 
     console.log('MongoDB connected successfully');
