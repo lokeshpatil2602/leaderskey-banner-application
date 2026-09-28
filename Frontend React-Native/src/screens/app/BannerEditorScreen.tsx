@@ -1,740 +1,796 @@
-import React, { useMemo, useRef, useState, useCallback } from 'react';
-import { useTranslation } from '../../i18n/I18nContext';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Dimensions,
-  Keyboard,
   KeyboardAvoidingView,
-  Modal,
-  PanResponder,
   Platform,
-  Pressable,
-  ScrollView,
-
+  StyleSheet,
   Text,
-  TextInput,
-  TouchableWithoutFeedback,
   View
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { Template } from '../../api/services/templateService';
 import { createBanner } from '../../api/services/bannerService';
 import { uploadImage } from '../../api/services/uploadService';
 import {
-  BannerCanvas,
-  BannerElement,
-  Template
-} from '../../api/services/templateService';
-import { BannerRenderer } from '../../components/banner/BannerRenderer';
-import { FONT_OPTIONS } from '../../utils/fontUtils';
-
-import { editorStyles as lightStyles } from '../../styles/editorStyles';
-import { editorDarkStyles as darkStyles } from '../../styles/editorDarkStyles';
-import { Appearance } from 'react-native';
-import { ResizeControls } from '../../components/editor/ResizeControls';
-import { exportCanvas } from '../../utils/canvasExport';
-import * as Sharing from 'expo-sharing';
-import { CanvasPreset, Design } from '../../features/editor/resize/types';
-
-
+  CANVAS_SIZE_PRESETS,
+  CanvasSizePreset,
+  DrawingStroke,
+  EditorElement,
+  EditorSnapshot,
+  createDefaultEditorState
+} from '../../state/editorState';
+import { EditorHeader } from '../../components/editor/EditorHeader';
+import { EditorCanvas } from '../../components/editor/EditorCanvas';
+import { ActivePanel, EditorToolbar } from '../../components/editor/EditorToolbar';
+import { TextEditorPanel } from '../../components/editor/TextEditorPanel';
+import { BackgroundPanel } from '../../components/editor/BackgroundPanel';
+import { StickerPanel } from '../../components/editor/StickerPanel';
+import { ShapePanel } from '../../components/editor/ShapePanel';
+import { BrushPanel } from '../../components/editor/BrushPanel';
+import { EffectsPanel } from '../../components/editor/EffectsPanel';
+import { LayersPanel } from '../../components/editor/LayersPanel';
+import { CanvasResizeModal } from '../../components/editor/CanvasResizeModal';
+import { ExportControls } from '../../components/editor/ExportControls';
+import { exportCanvas, shareCanvasImage } from '../../utils/canvasExport';
 
 type BannerEditorScreenProps = {
-  template: Template;
+  template?: Template | null;
   onCancel: () => void;
   onSaved: () => void;
 };
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-const COLOR_PALETTE = [
-  '#FFFFFF',
-  '#000000',
-  '#FCD34D',
-  '#38BDF8',
-  '#4ADE80',
-  '#F87171',
-  '#C084FC'
-];
-const SIZE_PRESETS = [14, 18, 22, 26, 32, 38];
-const ALIGNMENT_OPTIONS: ('left' | 'center' | 'right')[] = ['left', 'center', 'right'];
-
-const PRESET_PHOTO_CHOICES = [
-  { label: 'Person 1', url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=500' },
-  { label: 'Person 2', url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=500' },
-  { label: 'Celebrant', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500' },
-  { label: 'Speaker', url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=500' },
-  { label: 'Symbol (Diya)', url: 'https://images.unsplash.com/photo-1607344645866-009c320b5ab8?w=200' },
-  { label: 'Party Symbol', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200' }
-];
-
 export function BannerEditorScreen({ template, onCancel, onSaved }: BannerEditorScreenProps) {
-  const { t } = useTranslation();
-const colorScheme = Appearance.getColorScheme();
-const styles = colorScheme === 'dark' ? darkStyles : lightStyles;
-  const canvasWidth = template.canvas?.width || 1080;
-  const canvasHeight = template.canvas?.height || 1350;
-  const aspectRatio = canvasWidth / canvasHeight;
+  // Initialize Canvas snapshot from template or blank canvas
+  const initialSnapshot = useMemo<EditorSnapshot>(() => {
+    const width = template?.canvas?.width || 1080;
+    const height = template?.canvas?.height || 1350;
+    const defaultState = createDefaultEditorState(width, height);
 
-  // Max preview width that fits nicely on mobile screen
-  const previewContainerWidth = Math.min(SCREEN_WIDTH - 32, 380);
-  const previewContainerHeight = Math.round(previewContainerWidth / aspectRatio);
-
-  // Initialize elements from template copy
-  const initialElements = useMemo<BannerElement[]>(() => {
-    if (template.elements && template.elements.length > 0) {
-      return template.elements.map((e) => ({
-        ...e,
-        position: { ...e.position },
-        size: { ...e.size },
-        style: e.style ? { ...e.style } : undefined
-      }));
+    if (template?.background?.color) {
+      defaultState.background.color = template.background.color;
+    }
+    if (template?.background?.source || template?.imageUrl) {
+      defaultState.background.imageUrl = template.background?.source || template.imageUrl;
+      defaultState.background.type = 'image';
     }
 
-    return [
-      {
-        id: 'heading',
-        type: 'text',
-        label: 'Heading',
-        content: 'Meet Sanwadkar',
-        position: { x: 50, y: 50 },
-        size: { width: 70, height: 10 },
-        style: { fontFamily: 'Modern', fontSize: 26, color: '#FFFFFF', alignment: 'center' },
-        required: true,
-        editable: true,
-        movable: true,
-        zIndex: 1
-      }
-    ];
+    if (template?.elements && template.elements.length > 0) {
+      defaultState.elements = template.elements.map((el, idx) => ({
+        id: el.id || `el_${idx}_${Date.now()}`,
+        type: (el.type as any) || 'text',
+        label: el.label || el.type,
+        content: el.content || '',
+        position: { x: el.position?.x ?? 50, y: el.position?.y ?? 50 },
+        size: { width: el.size?.width ?? 60, height: el.size?.height ?? 15 },
+        rotation: (el as any).rotation || 0,
+        opacity: (el as any).opacity !== undefined ? (el as any).opacity : (el.style?.opacity ?? 1),
+        zIndex: idx + 1,
+        visible: true,
+        locked: false,
+        style: el.style ? { ...el.style } : {}
+      }));
+    } else {
+      // Default initial starter text for blank canvas
+      defaultState.elements = [
+        {
+          id: `heading_${Date.now()}`,
+          type: 'text',
+          label: 'शीर्षक (Heading)',
+          content: 'हार्दिक शुभेच्छा',
+          position: { x: 50, y: 35 },
+          size: { width: 80, height: 16 },
+          zIndex: 1,
+          visible: true,
+          style: {
+            fontSize: 26,
+            fontWeight: 'bold',
+            color: '#1E3A8A',
+            textAlign: 'center'
+          }
+        }
+      ];
+    }
+
+    return defaultState;
   }, [template]);
 
-  const [elements, setElements] = useState<BannerElement[]>(initialElements);
-  const [selectedElementId, setSelectedElementId] = useState<string>(
-    initialElements[0]?.id || ''
+  // History State
+  const [past, setPast] = useState<EditorSnapshot[]>([]);
+  const [present, setPresent] = useState<EditorSnapshot>(initialSnapshot);
+  const [future, setFuture] = useState<EditorSnapshot[]>([]);
+
+  // Active element & panel
+  const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+  const [activePanel, setActivePanel] = useState<ActivePanel>('none');
+
+  // Brush Mode
+  const [isBrushMode, setIsBrushMode] = useState(false);
+  const [brushColor, setBrushColor] = useState('#EF4444');
+  const [brushWidth, setBrushWidth] = useState(8);
+  const [currentBrushStroke, setCurrentBrushStroke] = useState<DrawingStroke | null>(null);
+
+  // Modals & Spinners
+  const [resizeModalVisible, setResizeModalVisible] = useState(false);
+  const [exportModalVisible, setExportModalVisible] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [loadingOverlayMsg, setLoadingOverlayMsg] = useState<string | null>(null);
+
+  // Native Canvas View Ref for ViewShot capture
+  const canvasRef = useRef<View | null>(null);
+
+  // Helper to commit new snapshot to history
+  const pushSnapshot = useCallback(
+    (newSnapshot: EditorSnapshot) => {
+      setPast((prev) => [...prev.slice(-20), present]);
+      setPresent(newSnapshot);
+      setFuture([]);
+    },
+    [present]
   );
-  const [saving, setSaving] = useState(false);
-  const [exporting, setExporting] = useState(false);
 
-  // Replace Image Modal state
-  const [replaceModalVisible, setReplaceModalVisible] = useState(false);
-  const [customImageUrl, setCustomImageUrl] = useState('');
+  // Undo / Redo
+  const handleUndo = useCallback(() => {
+    if (past.length === 0) return;
+    const previous = past[past.length - 1];
+    const newPast = past.slice(0, past.length - 1);
+    setPast(newPast);
+    setFuture((prev) => [present, ...prev]);
+    setPresent(previous);
+  }, [past, present]);
 
-  // Refs for gesture handling
-  const elementsRef = useRef(elements);
-  // Ref for capturing the canvas view for export
-  const canvasRef = useRef<View>(null);
-  elementsRef.current = elements;
-  const selectedElementIdRef = useRef(selectedElementId);
-  selectedElementIdRef.current = selectedElementId;
-  const dragStartPos = useRef({ x: 50, y: 50 });
-  const [canvasPreset, setCanvasPreset] = useState<CanvasPreset>({ name: 'Custom', width: canvasWidth, height: canvasHeight });
-  const handleCanvasResize = useCallback((newDesign: Design) => {
-  setCanvasPreset(newDesign.preset);
-  setElements(newDesign.elements as unknown as BannerElement[]);
-}, []);
+  const handleRedo = useCallback(() => {
+    if (future.length === 0) return;
+    const next = future[0];
+    const newFuture = future.slice(1);
+    setPast((prev) => [...prev, present]);
+    setPresent(next);
+    setFuture(newFuture);
+  }, [future, present]);
 
-  // Export current banner as PNG and share (Export button)
-  const handleExport = async () => {
-    if (!canvasRef.current) {
-      Alert.alert(t('exportError'), t('canvasNotReady'));
-      return;
-    }
-    try {
-      setExporting(true);
-      const uri = await exportCanvas(canvasRef.current, canvasPreset);
-      await Sharing.shareAsync(uri, {
-        mimeType: 'image/png',
-        dialogTitle: t('exportBanner'),
-      });
-    } catch (e: any) {
-      console.error('Export failed', e);
-      Alert.alert(t('exportError'), e.message ?? t('unexpectedError'));
-    } finally {
-      setExporting(false);
-    }
-  };
+  const selectedElement = useMemo(
+    () => present.elements.find((el) => el.id === selectedElementId) || null,
+    [present.elements, selectedElementId]
+  );
 
-  // Share current banner (Share button) – re‑uses exportCanvas then opens share sheet
-  const handleShare = async () => {
-    if (!canvasRef.current) {
-      Alert.alert(t('shareError'), t('canvasNotReady'));
-      return;
-    }
-    try {
-      setExporting(true);
-      const uri = await exportCanvas(canvasRef.current, canvasPreset);
-      await Sharing.shareAsync(uri, {
-        mimeType: 'image/png',
-        dialogTitle: t('shareBanner'),
-      });
-    } catch (e: any) {
-      console.error('Share failed', e);
-      Alert.alert(t('shareError'), e.message ?? t('unexpectedError'));
-    } finally {
-      setExporting(false);
-    }
-  };
+  // Element CRUD Operations
+  const handleUpdateElementPosition = useCallback(
+    (id: string, newPos: { x: number; y: number }) => {
+      const updatedElements = present.elements.map((el) =>
+        el.id === id ? { ...el, position: newPos } : el
+      );
+      setPresent((prev) => ({ ...prev, elements: updatedElements }));
+    },
+    [present.elements]
+  );
 
+  const handleDeleteElement = useCallback(
+    (id: string) => {
+      const updatedElements = present.elements.filter((el) => el.id !== id);
+      pushSnapshot({ ...present, elements: updatedElements });
+      if (selectedElementId === id) setSelectedElementId(null);
+    },
+    [present, pushSnapshot, selectedElementId]
+  );
 
-  const activeElement =
-    elements.find((e) => e.id === selectedElementId) || elements[0];
+  const handleDuplicateElement = useCallback(
+    (id: string) => {
+      const target = present.elements.find((el) => el.id === id);
+      if (!target) return;
 
-  // Pick PNG / Image from Mobile Gallery
-  const handlePickFromDevice = async () => {
-    try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(
-          t('permissionRequired'),
-          t('photoPermission')
-        );
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: false,
-        quality: 0.85,
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const asset = result.assets[0];
-        // Upload the local image to backend and get URL
-        const uploaded = await uploadImage(asset.uri);
-        handleApplyImageReplacement(uploaded.url);
-      }
-    } catch (error) {
-      Alert.alert(t('uploadFailed'), t('selectedImageError'));
-    }
-  };
-
-  // PanResponder to drag movable elements on canvas
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: (_, gestureState) => {
-          return Math.abs(gestureState.dx) > 3 || Math.abs(gestureState.dy) > 3;
+      const duplicated: EditorElement = {
+        ...target,
+        id: `el_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+        label: `${target.label} (Copy)`,
+        position: {
+          x: Math.min(90, target.position.x + 5),
+          y: Math.min(90, target.position.y + 5)
         },
-        onPanResponderGrant: () => {
-          const current = elementsRef.current.find(
-            (e) => e.id === selectedElementIdRef.current
-          );
-          if (current) {
-            dragStartPos.current = { ...current.position };
-          }
-        },
-        onPanResponderMove: (_, gestureState) => {
-          const current = elementsRef.current.find(
-            (e) => e.id === selectedElementIdRef.current
-          );
-          if (!current || current.locked || current.movable === false) {
+        zIndex: present.elements.length + 1
+      };
+
+      pushSnapshot({
+        ...present,
+        elements: [...present.elements, duplicated]
+      });
+      setSelectedElementId(duplicated.id);
+    },
+    [present, pushSnapshot]
+  );
+
+  // Text Add / Update
+  const handleAddText = useCallback(
+    (text: string, style?: any) => {
+      const newEl: EditorElement = {
+        id: `text_${Date.now()}`,
+        type: 'text',
+        label: text.substring(0, 16),
+        content: text,
+        position: { x: 50, y: 50 },
+        size: { width: 70, height: 14 },
+        zIndex: present.elements.length + 1,
+        visible: true,
+        style: style || { fontSize: 22, color: '#111827', textAlign: 'center', fontWeight: '700' }
+      };
+
+      pushSnapshot({
+        ...present,
+        elements: [...present.elements, newEl]
+      });
+      setSelectedElementId(newEl.id);
+    },
+    [present, pushSnapshot]
+  );
+
+  const handleUpdateText = useCallback(
+    (updates: { content?: string; style?: any }) => {
+      if (!selectedElementId) return;
+      const updatedElements = present.elements.map((el) => {
+        if (el.id === selectedElementId) {
+          return {
+            ...el,
+            content: updates.content !== undefined ? updates.content : el.content,
+            label: updates.content ? updates.content.substring(0, 16) : el.label,
+            style: updates.style ? { ...(el.style || {}), ...updates.style } : el.style
+          };
+        }
+        return el;
+      });
+
+      setPresent((prev) => ({ ...prev, elements: updatedElements }));
+    },
+    [present.elements, selectedElementId]
+  );
+
+  // Image Upload via Camera / Gallery
+  const handlePickImage = useCallback(
+    async (source: 'camera' | 'gallery') => {
+      try {
+        let result;
+        if (source === 'camera') {
+          const perm = await ImagePicker.requestCameraPermissionsAsync();
+          if (!perm.granted) {
+            Alert.alert('Permission Needed', 'Camera access is required to take photo for banner.');
             return;
           }
+          result = await ImagePicker.launchCameraAsync({
+            allowsEditing: true,
+            quality: 0.9
+          });
+        } else {
+          result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            allowsEditing: true,
+            quality: 0.9
+          });
+        }
 
-          const deltaXPercent = (gestureState.dx / previewContainerWidth) * 100;
-          const deltaYPercent = (gestureState.dy / previewContainerHeight) * 100;
+        if (!result.canceled && result.assets?.[0]?.uri) {
+          setLoadingOverlayMsg('फोटो क्लाउडवर अपलोड करत आहे (Uploading photo to Cloudinary)...');
+          const uploaded = await uploadImage(result.assets[0].uri);
 
-          const newX = Math.round(
-            Math.min(Math.max(dragStartPos.current.x + deltaXPercent, 6), 94)
-          );
-          const newY = Math.round(
-            Math.min(Math.max(dragStartPos.current.y + deltaYPercent, 6), 94)
-          );
+          const newImgEl: EditorElement = {
+            id: `img_${Date.now()}`,
+            type: 'image',
+            label: 'Photo',
+            content: uploaded.url,
+            position: { x: 50, y: 60 },
+            size: { width: 45, height: 35 },
+            zIndex: present.elements.length + 1,
+            visible: true,
+            style: {
+              borderRadius: 8
+            }
+          };
 
-          setElements((prev) =>
-            prev.map((e) =>
-              e.id === selectedElementIdRef.current
-                ? { ...e, position: { x: newX, y: newY } }
-                : e
-            )
-          );
-        },
-        onPanResponderRelease: () => {},
-        onPanResponderTerminate: () => {}
-      }),
-    [previewContainerWidth, previewContainerHeight]
+          pushSnapshot({
+            ...present,
+            elements: [...present.elements, newImgEl]
+          });
+          setSelectedElementId(newImgEl.id);
+          setActivePanel('none');
+        }
+      } catch (err: any) {
+        Alert.alert('Upload Error', err?.message || 'Failed to upload photo.');
+      } finally {
+        setLoadingOverlayMsg(null);
+      }
+    },
+    [present, pushSnapshot]
   );
 
-  const handleTextContentChange = (text: string) => {
-    if (!activeElement || activeElement.locked || !activeElement.editable) return;
-    setElements((prev) =>
-      prev.map((e) => (e.id === activeElement.id ? { ...e, content: text } : e))
-    );
-  };
+  // Sticker Add
+  const handleAddSticker = useCallback(
+    (sticker: string) => {
+      const newSticker: EditorElement = {
+        id: `stk_${Date.now()}`,
+        type: 'sticker',
+        label: sticker,
+        content: sticker,
+        position: { x: 50, y: 50 },
+        size: { width: 25, height: 20 },
+        zIndex: present.elements.length + 1,
+        visible: true
+      };
 
-  const handleStyleChange = (key: string, val: any) => {
-    if (!activeElement || activeElement.locked) return;
-    setElements((prev) =>
-      prev.map((e) =>
-        e.id === activeElement.id
-          ? {
-              ...e,
-              style: {
-                ...(e.style || {}),
-                [key]: val
-              }
-            }
-          : e
-      )
-    );
-  };
+      pushSnapshot({
+        ...present,
+        elements: [...present.elements, newSticker]
+      });
+      setSelectedElementId(newSticker.id);
+    },
+    [present, pushSnapshot]
+  );
 
-  const handleResize = (delta: number) => {
-    if (!activeElement || activeElement.locked || activeElement.resizable === false) return;
-    setElements((prev) =>
-      prev.map((e) => {
-        if (e.id !== activeElement.id) return e;
-        const newWidth = Math.min(Math.max((e.size.width || 40) + delta, 15), 90);
-        const newHeight = e.size.height ? Math.min(Math.max(e.size.height + delta, 10), 90) : undefined;
-        return {
-          ...e,
-          size: { width: newWidth, height: newHeight }
-        };
-      })
-    );
-  };
-
-  const handleResetPosition = () => {
-    if (!activeElement) return;
-    const templateEl = template.elements?.find((te) => te.id === activeElement.id);
-    if (!templateEl) return;
-
-    setElements((prev) =>
-      prev.map((e) =>
-        e.id === activeElement.id
-          ? {
-              ...e,
-              position: { ...templateEl.position },
-              size: { ...templateEl.size }
-            }
-          : e
-      )
-    );
-  };
-
-  const handleApplyImageReplacement = (url: string) => {
-    if (!activeElement || !url.trim()) return;
-    setElements((prev) =>
-      prev.map((e) => (e.id === activeElement.id ? { ...e, source: url.trim() } : e))
-    );
-    setReplaceModalVisible(false);
-    setCustomImageUrl('');
-  };
-
-  const handleSave = async () => {
-    // Validate required elements
-    for (const el of elements) {
-      if (el.required) {
-        if (el.type === 'text' && (!el.content || !el.content.trim())) {
-          Alert.alert(t('requiredElement'), `Please enter ${el.label}.`);
-          return;
+  // Shape Add
+  const handleAddShape = useCallback(
+    (shapeType: 'rectangle' | 'rounded' | 'circle' | 'nameplate', color: string) => {
+      const isNameplate = shapeType === 'nameplate';
+      const newShape: EditorElement = {
+        id: `shp_${Date.now()}`,
+        type: 'shape',
+        label: isNameplate ? 'नाव पट्टी' : shapeType,
+        content: '',
+        position: { x: 50, y: isNameplate ? 85 : 50 },
+        size: isNameplate ? { width: 90, height: 12 } : { width: 50, height: 35 },
+        zIndex: 1, // shapes usually start behind text
+        visible: true,
+        style: {
+          backgroundColor: color,
+          shapeType,
+          borderRadius: shapeType === 'rounded' ? 12 : 0
         }
-      }
-    }
+      };
 
-    try {
-      setSaving(true);
-      await createBanner({
-        templateId: template.id,
-        title: `${template.title} Customized`,
-        canvas: template.canvas,
-        background: template.background,
-        elements
+      pushSnapshot({
+        ...present,
+        elements: [...present.elements, newShape]
+      });
+      setSelectedElementId(newShape.id);
+    },
+    [present, pushSnapshot]
+  );
+
+  // Background Update
+  const handleUpdateBackground = useCallback(
+    (bg: any) => {
+      pushSnapshot({
+        ...present,
+        background: bg
+      });
+    },
+    [present, pushSnapshot]
+  );
+
+  // Effects & Style Update
+  const handleUpdateElementStyle = useCallback(
+    (styleUpdates: any, opacity?: number) => {
+      if (!selectedElementId) return;
+      const updatedElements = present.elements.map((el) => {
+        if (el.id === selectedElementId) {
+          return {
+            ...el,
+            opacity: opacity !== undefined ? opacity : el.opacity,
+            style: { ...(el.style || {}), ...styleUpdates }
+          };
+        }
+        return el;
       });
 
-      Alert.alert(t('success'), t('bannerSaved'), [
-        {
-          text: 'View My Banners',
-          onPress: onSaved
-        }
-      ]);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unable to save banner.';
-      Alert.alert(t('saveFailed'), msg);
+      pushSnapshot({ ...present, elements: updatedElements });
+    },
+    [present, pushSnapshot, selectedElementId]
+  );
+
+  // Layers Actions
+  const handleToggleVisibility = useCallback(
+    (id: string) => {
+      const updated = present.elements.map((el) =>
+        el.id === id ? { ...el, visible: el.visible === false ? true : false } : el
+      );
+      pushSnapshot({ ...present, elements: updated });
+    },
+    [present, pushSnapshot]
+  );
+
+  const handleToggleLock = useCallback(
+    (id: string) => {
+      const updated = present.elements.map((el) =>
+        el.id === id ? { ...el, locked: !el.locked } : el
+      );
+      pushSnapshot({ ...present, elements: updated });
+    },
+    [present, pushSnapshot]
+  );
+
+  const handleMoveLayer = useCallback(
+    (id: string, direction: 'up' | 'down') => {
+      const idx = present.elements.findIndex((el) => el.id === id);
+      if (idx === -1) return;
+      const newIdx = direction === 'up' ? idx + 1 : idx - 1;
+      if (newIdx < 0 || newIdx >= present.elements.length) return;
+
+      const updated = [...present.elements];
+      const temp = updated[idx];
+      updated[idx] = updated[newIdx];
+      updated[newIdx] = temp;
+
+      // Re-assign zIndexes
+      const reindexed = updated.map((el, i) => ({ ...el, zIndex: i + 1 }));
+      pushSnapshot({ ...present, elements: reindexed });
+    },
+    [present, pushSnapshot]
+  );
+
+  // Brush Touch Callbacks
+  const handleBrushTouchStart = useCallback(
+    (x: number, y: number) => {
+      setCurrentBrushStroke({
+        id: `stroke_${Date.now()}`,
+        points: [{ x, y }],
+        color: brushColor,
+        width: brushWidth
+      });
+    },
+    [brushColor, brushWidth]
+  );
+
+  const handleBrushTouchMove = useCallback((x: number, y: number) => {
+    setCurrentBrushStroke((prev) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        points: [...prev.points, { x, y }]
+      };
+    });
+  }, []);
+
+  const handleBrushTouchEnd = useCallback(() => {
+    if (currentBrushStroke && currentBrushStroke.points.length > 1) {
+      pushSnapshot({
+        ...present,
+        drawingStrokes: [...present.drawingStrokes, currentBrushStroke]
+      });
+    }
+    setCurrentBrushStroke(null);
+  }, [currentBrushStroke, present, pushSnapshot]);
+
+  const handleUndoStroke = useCallback(() => {
+    if (present.drawingStrokes.length === 0) return;
+    const newStrokes = present.drawingStrokes.slice(0, -1);
+    pushSnapshot({ ...present, drawingStrokes: newStrokes });
+  }, [present, pushSnapshot]);
+
+  const handleClearStrokes = useCallback(() => {
+    pushSnapshot({ ...present, drawingStrokes: [] });
+  }, [present, pushSnapshot]);
+
+  // Canvas Resize Preset Select
+  const handleSelectSizePreset = useCallback(
+    (preset: CanvasSizePreset) => {
+      pushSnapshot({
+        ...present,
+        canvasWidth: preset.width,
+        canvasHeight: preset.height,
+        sizePreset: preset.id
+      });
+    },
+    [present, pushSnapshot]
+  );
+
+  // Save Banner to Backend API
+  const handleSaveBanner = async () => {
+    if (isSaving) return;
+    try {
+      setIsSaving(true);
+      setSelectedElementId(null);
+      setActivePanel('none');
+
+      // 1. Export thumbnail preview of banner
+      let previewUrl = '';
+      try {
+        const fileUri = await exportCanvas(canvasRef, { format: 'jpg', quality: 0.8 });
+        const uploadedThumb = await uploadImage(fileUri);
+        previewUrl = uploadedThumb.url;
+      } catch (e) {
+        console.warn('Thumbnail upload skipped:', e);
+      }
+
+      // 2. Save payload to backend
+      const bannerPayload = {
+        title: template?.title || 'माझा बॅनर (My Banner)',
+        templateId: template?.id,
+        canvas: {
+          width: present.canvasWidth,
+          height: present.canvasHeight,
+          sizePreset: present.sizePreset,
+          backgroundColor: present.background.color,
+          backgroundImage: present.background.imageUrl
+        },
+        elements: present.elements.map((el) => ({
+          id: el.id,
+          type: el.type,
+          label: el.label,
+          content: el.content,
+          position: el.position,
+          size: el.size,
+          opacity: el.opacity,
+          zIndex: el.zIndex,
+          style: el.style
+        })),
+        previewUrl: previewUrl || template?.imageUrl || ''
+      };
+
+      await createBanner(bannerPayload as any);
+
+      Alert.alert(
+        'यशस्वी (Success)',
+        'बॅनर यशस्वीरित्या सेव्ह झाला आहे! (Banner saved successfully!)',
+        [{ text: 'ठीक आहे (OK)', onPress: onSaved }]
+      );
+    } catch (error: any) {
+      Alert.alert('Save Error', error?.message || 'Failed to save banner.');
     } finally {
-      setSaving(false);
+      setIsSaving(false);
     }
   };
 
-  // Group elements for user-friendly element selection
-  const userEditableElements = elements.filter((e) => !e.locked);
+  // Export to Local Gallery
+  const handleExport = async (format: 'png' | 'jpg') => {
+    try {
+      setIsExporting(true);
+      setSelectedElementId(null);
+      const uri = await exportCanvas(canvasRef, {
+        format,
+        width: present.canvasWidth,
+        height: present.canvasHeight
+      });
+      setExportModalVisible(false);
+      Alert.alert('एक्सपोर्ट यशस्वी (Export Successful)', `बॅनर फाईल तयार झाली:\n${uri}`);
+    } catch (e: any) {
+      Alert.alert('Export Error', e?.message || 'Could not export canvas.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // Share via Android Native Share Sheet
+  const handleShare = async (format: 'png' | 'jpg') => {
+    try {
+      setIsExporting(true);
+      setSelectedElementId(null);
+      await shareCanvasImage(
+        canvasRef,
+        {
+          format,
+          width: present.canvasWidth,
+          height: present.canvasHeight
+        },
+        'Share My LeadersKey Banner'
+      );
+      setExportModalVisible(false);
+    } catch (e: any) {
+      Alert.alert('Share Error', e?.message || 'Could not share canvas.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // Bottom Toolbar Item Selection
+  const handleSelectTool = (tool: ActivePanel | 'camera' | 'gallery') => {
+    if (tool === 'camera') {
+      handlePickImage('camera');
+      return;
+    }
+    if (tool === 'gallery') {
+      handlePickImage('gallery');
+      return;
+    }
+    if (tool === 'brush') {
+      setIsBrushMode(true);
+      setSelectedElementId(null);
+      setActivePanel('brush');
+      return;
+    }
+
+    setIsBrushMode(false);
+    setActivePanel((prev) => (prev === tool ? 'none' : tool));
+  };
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        {/* Top Header */}
-        <View style={styles.header}>
-          <Pressable style={styles.backButton} onPress={onCancel} disabled={saving}>
-            <Text style={styles.backButtonText}>← {t('backTemplates')}</Text>
-          </Pressable>
-          <Text style={styles.headerTitle}>{t('editBanner')}</Text>
-          {/* Save Button */}
-          <Pressable style={styles.headerSaveBtn} onPress={handleSave} disabled={saving}>
-            {saving ? (
-              <ActivityIndicator size="small" color="#ffffff" />
-            ) : (
-              <Text style={styles.headerSaveText}>{t('save')}</Text>
-            )}
-          </Pressable>
-          {/* Export Button */}
-          <Pressable style={styles.exportButton} onPress={handleExport} disabled={exporting}>
-            {exporting ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Text style={styles.exportButtonText}>{t('export')}</Text>
-            )}
-          </Pressable>
-          {/* Share Button */}
-          <Pressable style={styles.shareButton} onPress={handleShare} disabled={exporting}>
-            {exporting ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Text style={styles.shareButtonText}>{t('share')}</Text>
-            )}
-          </Pressable>
+    <KeyboardAvoidingView
+      style={styles.screenContainer}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      {/* Editor Header Bar */}
+      <EditorHeader
+        title={template?.title || 'Banner Editor'}
+        canUndo={past.length > 0}
+        canRedo={future.length > 0}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        onBack={() => {
+          if (past.length > 0) {
+            Alert.alert(
+              'बाहेर पडायचे का? (Exit?)',
+              'तुम्ही केलेले बदल सेव्ह केलेले नसतील तर ते नष्ट होतील. बाहेर पडायचे?',
+              [
+                { text: 'रद्द करा (Cancel)', style: 'cancel' },
+                { text: 'बाहेर पडा (Exit)', style: 'destructive', onPress: onCancel }
+              ]
+            );
+          } else {
+            onCancel();
+          }
+        }}
+        onSave={handleSaveBanner}
+        onExport={() => setExportModalVisible(true)}
+        onShare={() => setExportModalVisible(true)}
+        onOpenResizeModal={() => setResizeModalVisible(true)}
+        isSaving={isSaving}
+        isExporting={isExporting}
+      />
+
+      {/* Main Canvas Workspace */}
+      <View style={styles.workspace}>
+        <EditorCanvas
+          snapshot={present}
+          selectedElementId={selectedElementId}
+          onSelectElement={(id) => {
+            setSelectedElementId(id);
+            if (id) {
+              const el = present.elements.find((e) => e.id === id);
+              if (el?.type === 'text') setActivePanel('text');
+            }
+          }}
+          onUpdateElementPosition={handleUpdateElementPosition}
+          onDeleteElement={handleDeleteElement}
+          onDuplicateElement={handleDuplicateElement}
+          isExporting={isExporting}
+          isBrushMode={isBrushMode}
+          currentBrushStroke={currentBrushStroke}
+          onBrushTouchStart={handleBrushTouchStart}
+          onBrushTouchMove={handleBrushTouchMove}
+          onBrushTouchEnd={handleBrushTouchEnd}
+          canvasRef={canvasRef}
+        />
+      </View>
+
+      {/* Contextual Active Bottom Panel */}
+      {activePanel === 'text' ? (
+        <TextEditorPanel
+          selectedElement={selectedElement}
+          onAddText={handleAddText}
+          onUpdateText={handleUpdateText}
+          onClose={() => setActivePanel('none')}
+        />
+      ) : activePanel === 'background' ? (
+        <BackgroundPanel
+          currentBackground={present.background}
+          onUpdateBackground={handleUpdateBackground}
+          onClose={() => setActivePanel('none')}
+          onStartLoading={(msg) => setLoadingOverlayMsg(msg)}
+          onStopLoading={() => setLoadingOverlayMsg(null)}
+        />
+      ) : activePanel === 'stickers' || activePanel === 'emoji' ? (
+        <StickerPanel
+          onAddSticker={handleAddSticker}
+          onClose={() => setActivePanel('none')}
+        />
+      ) : activePanel === 'shapes' ? (
+        <ShapePanel
+          onAddShape={handleAddShape}
+          onClose={() => setActivePanel('none')}
+        />
+      ) : activePanel === 'brush' && isBrushMode ? (
+        <BrushPanel
+          brushColor={brushColor}
+          brushWidth={brushWidth}
+          onSetBrushColor={setBrushColor}
+          onSetBrushWidth={setBrushWidth}
+          onUndoStroke={handleUndoStroke}
+          onClearStrokes={handleClearStrokes}
+          onExitBrush={() => {
+            setIsBrushMode(false);
+            setActivePanel('none');
+          }}
+        />
+      ) : activePanel === 'effects' ? (
+        <EffectsPanel
+          selectedElement={selectedElement}
+          onUpdateElementStyle={handleUpdateElementStyle}
+          onClose={() => setActivePanel('none')}
+        />
+      ) : activePanel === 'layers' ? (
+        <LayersPanel
+          elements={present.elements}
+          selectedElementId={selectedElementId}
+          onSelectElement={(id) => setSelectedElementId(id)}
+          onToggleVisibility={handleToggleVisibility}
+          onToggleLock={handleToggleLock}
+          onMoveLayerUp={(id) => handleMoveLayer(id, 'up')}
+          onMoveLayerDown={(id) => handleMoveLayer(id, 'down')}
+          onBringToFront={(id) => {
+            const el = present.elements.find((e) => e.id === id);
+            if (!el) return;
+            const remaining = present.elements.filter((e) => e.id !== id);
+            const updated = [...remaining, el].map((e, i) => ({ ...e, zIndex: i + 1 }));
+            pushSnapshot({ ...present, elements: updated });
+          }}
+          onSendToBack={(id) => {
+            const el = present.elements.find((e) => e.id === id);
+            if (!el) return;
+            const remaining = present.elements.filter((e) => e.id !== id);
+            const updated = [el, ...remaining].map((e, i) => ({ ...e, zIndex: i + 1 }));
+            pushSnapshot({ ...present, elements: updated });
+          }}
+          onDuplicateElement={handleDuplicateElement}
+          onDeleteElement={handleDeleteElement}
+          onClose={() => setActivePanel('none')}
+        />
+      ) : null}
+
+      {/* Bottom Design Tools Toolbar */}
+      <EditorToolbar activePanel={activePanel} onSelectTool={handleSelectTool} />
+
+      {/* Resize Modal */}
+      <CanvasResizeModal
+        visible={resizeModalVisible}
+        activePresetId={present.sizePreset}
+        onSelectPreset={handleSelectSizePreset}
+        onClose={() => setResizeModalVisible(false)}
+      />
+
+      {/* Export & Share Modal */}
+      <ExportControls
+        visible={exportModalVisible}
+        onExport={handleExport}
+        onShare={handleShare}
+        onClose={() => setExportModalVisible(false)}
+        isProcessing={isExporting}
+      />
+
+      {/* Loading Overlay Spinner */}
+      {loadingOverlayMsg ? (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#FFFFFF" />
+          <Text style={styles.loadingOverlayText}>{loadingOverlayMsg}</Text>
         </View>
-
-        <ScrollView
-          style={styles.scrollArea}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* Live Canvas Preview */}
-          <View style={styles.previewSection}>
-            <View style={styles.previewHeaderRow}>
-              <Text style={styles.sectionLabel}>{t('livePreview')}</Text>
-              <Text style={styles.dragHintText}>
-                {activeElement?.locked
-                  ? `🔒 ${t('fixed')}`
-                  : activeElement?.movable
-                  ? `✨ ${t('dragHint')}`
-                  : t('tapToEdit')}
-              </Text>
-            </View>
-
-            <View style={styles.rendererWrapper} ref={canvasRef}>
-              <BannerRenderer
-                canvas={template.canvas}
-                background={template.background}
-                elements={elements}
-                containerWidth={previewContainerWidth}
-                selectedElementId={selectedElementId}
-                onSelectElement={setSelectedElementId}
-                panHandlers={
-                  !activeElement?.locked && activeElement?.movable
-                    ? panResponder.panHandlers
-                    : undefined
-                }
-                interactive={true}
-              />
-            </View>
-          </View>
-
-          {/* Element Selection Chips */}
-          <View style={styles.elementTabsContainer}>
-            <Text style={styles.sectionSubLabel}>{t('editableContent')}</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.tabsScroll}
-            >
-              {elements.map((el) => {
-                const isSelected = el.id === selectedElementId;
-                const icon =
-                  el.type === 'text'
-                    ? '📝'
-                    : el.type === 'logo'
-                    ? '🏷️'
-                    : el.type === 'symbol'
-                    ? '✨'
-                    : '🖼️';
-
-                return (
-                  <Pressable
-                    key={el.id}
-                    style={[styles.tabChip, isSelected && styles.tabChipActive]}
-                    onPress={() => setSelectedElementId(el.id)}
-                  >
-                    <Text
-                      style={[styles.tabChipText, isSelected && styles.tabChipTextActive]}
-                    >
-                      {icon} {el.label} {el.locked ? '🔒' : el.required ? '*' : ''}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </View>
-
-          {/* Simple Contextual Controls for Active Element */}
-          {activeElement && (
-            <View style={styles.editorCard}>
-              <View style={styles.editorCardHeader}>
-                <View>
-                  <Text style={styles.cardTitle}>
-                    {activeElement.label}{' '}
-                    {activeElement.required ? (
-                      <Text style={{ color: '#ef4444' }}>*</Text>
-                    ) : (
-                      ''
-                    )}
-                  </Text>
-                  <Text style={styles.cardTypeSub}>
-                    {t('type')}: {activeElement.type.toUpperCase()}{' '}
-                    {activeElement.locked ? `• 🔒 ${t('fixed')}` : ''}
-                  </Text>
-                </View>
-
-                {!activeElement.locked && (
-                  <Pressable style={styles.resetPosBtn} onPress={handleResetPosition}>
-                    <Text style={styles.resetPosBtnText}>{t('reset')}</Text>
-                  </Pressable>
-                )}
-              </View>
-
-              {activeElement.locked ? (
-                <View style={styles.lockedNoteBox}>
-                  <Text style={styles.lockedNoteText}>
-                    🔒 {t('fixedElementNote')}
-                  </Text>
-                </View>
-              ) : activeElement.type === 'text' ? (
-                <>
-                  {/* Text Content Input */}
-                  <Text style={styles.controlLabel}>{t('text')}</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder={`Enter ${activeElement.label.toLowerCase()}...`}
-                    placeholderTextColor="#94a3b8"
-                    value={activeElement.content}
-                    onChangeText={handleTextContentChange}
-                  />
-
-                  {/* Font Family Selection */}
-                  <Text style={styles.controlLabel}>{t('fontStyle')}</Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.chipsScroll}
-                  >
-                    {FONT_OPTIONS.map((font) => {
-                      const isSelected =
-                        activeElement.style?.fontFamily?.toLowerCase() ===
-                          font.id.toLowerCase() ||
-                        activeElement.style?.fontFamily?.toLowerCase() ===
-                          font.label.toLowerCase();
-
-                      return (
-                        <Pressable
-                          key={font.id}
-                          style={[styles.chipBtn, isSelected && styles.chipBtnActive]}
-                          onPress={() => handleStyleChange('fontFamily', font.id)}
-                        >
-                          <Text
-                            style={[
-                              styles.chipText,
-                              font.getStyle(),
-                              isSelected && styles.chipTextActive
-                            ]}
-                          >
-                            {font.label}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </ScrollView>
-
-                  {/* Font Size Preset Controls */}
-                  <View style={styles.sizeHeaderRow}>
-                    <Text style={styles.controlLabel}>
-                      Size:{' '}
-                      <Text style={{ color: '#2563eb', fontWeight: '800' }}>
-                        {activeElement.style?.fontSize || 22}px
-                      </Text>
-                    </Text>
-                    <View style={styles.stepBtnRow}>
-                      <Pressable
-                        style={styles.stepBtn}
-                        onPress={() =>
-                          handleStyleChange(
-                            'fontSize',
-                            Math.max(10, (activeElement.style?.fontSize || 22) - 2)
-                          )
-                        }
-                      >
-                        <Text style={styles.stepBtnText}>−</Text>
-                      </Pressable>
-                      <Pressable
-                        style={styles.stepBtn}
-                        onPress={() =>
-                          handleStyleChange(
-                            'fontSize',
-                            Math.min(48, (activeElement.style?.fontSize || 22) + 2)
-                          )
-                        }
-                      >
-                        <Text style={styles.stepBtnText}>+</Text>
-                      </Pressable>
-                    </View>
-                  </View>
-
-                  {/* Text Color Palette */}
-                  <Text style={styles.controlLabel}>{t('color')}</Text>
-                  <View style={styles.colorPaletteRow}>
-                    {COLOR_PALETTE.map((clr) => (
-                      <Pressable
-                        key={clr}
-                        style={[
-                          styles.colorDot,
-                          { backgroundColor: clr },
-                          activeElement.style?.color === clr && styles.colorDotSelected
-                        ]}
-                        onPress={() => handleStyleChange('color', clr)}
-                      />
-                    ))}
-                  </View>
-
-                  {/* Text Alignment */}
-                  <Text style={styles.controlLabel}>{t('alignment')}</Text>
-                  <View style={styles.chipsRow}>
-                    {ALIGNMENT_OPTIONS.map((align) => (
-                      <Pressable
-                        key={align}
-                        style={[
-                          styles.chipBtn,
-                          activeElement.style?.alignment === align && styles.chipBtnActive
-                        ]}
-                        onPress={() => handleStyleChange('alignment', align)}
-                      >
-                        <Text
-                          style={[
-                            styles.chipText,
-                            activeElement.style?.alignment === align && styles.chipTextActive
-                          ]}
-                        >
-                          {align.charAt(0).toUpperCase() + align.slice(1)}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                </>
-              ) : (
-                /* Image / Logo / Symbol Controls */
-                <>
-                  {activeElement.editable !== false && (
-                    <View style={styles.imageControlBox}>
-                      <Text style={styles.controlLabel}>{t('replaceImage')}</Text>
-                      <Pressable
-                        style={styles.replaceBtn}
-                        onPress={() => setReplaceModalVisible(true)}
-                      >
-                        <Text style={styles.replaceBtnText}>📷 {t('selectReplaceImage')}</Text>
-                      </Pressable>
-                    </View>
-                  )}
-
-                  {activeElement.resizable && (
-                    <View style={styles.resizeBox}>
-                      <Text style={styles.controlLabel}>
-                        Size Scale: {activeElement.size.width}%
-                      </Text>
-                      <View style={styles.stepBtnRow}>
-                        <Pressable style={styles.stepBtn} onPress={() => handleResize(-5)}>
-                          <Text style={styles.stepBtnText}>−</Text>
-                        </Pressable>
-                        <Pressable style={styles.stepBtn} onPress={() => handleResize(5)}>
-                          <Text style={styles.stepBtnText}>+</Text>
-                        </Pressable>
-                      </View>
-                    </View>
-                  )}
-                  <ResizeControls canvasPreset={canvasPreset} elements={elements} onResize={handleCanvasResize} />
-                </>
-              )}
-            </View>
-          )}
-
-          {/* Primary Save Action */}
-          <View style={styles.actionContainer}>
-            <Pressable style={styles.saveButton} onPress={handleSave} disabled={saving}>
-              {saving ? (
-                <ActivityIndicator size="small" color="#ffffff" />
-              ) : (
-                <Text style={styles.saveButtonText}>{t('saveBanner')}</Text>
-              )}
-            </Pressable>
-          </View>
-        </ScrollView>
-
-        {/* Replace Image Modal */}
-        <Modal
-          visible={replaceModalVisible}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setReplaceModalVisible(false)}
-        >
-          <View style={styles.modalBackdrop}>
-            <View style={styles.modalCard}>
-              <ScrollView showsVerticalScrollIndicator={false}>
-                <Text style={styles.modalHeader}>{t('replace')} {activeElement?.label}</Text>
-
-                {/* Upload from Mobile Gallery */}
-                <Pressable
-                  style={styles.deviceUploadBtn}
-                  onPress={handlePickFromDevice}
-                >
-                  <Text style={styles.deviceUploadBtnText}>📁 {t('uploadPhoto')}</Text>
-                  <Text style={styles.deviceUploadSubText}>{t('uploadPhotoSupport')}</Text>
-                </Pressable>
-
-                <Text style={styles.modalSubLabel}>{t('choosePresets')}</Text>
-                <View style={styles.presetGrid}>
-                  {PRESET_PHOTO_CHOICES.map((p) => (
-                    <Pressable
-                      key={p.label}
-                      style={styles.presetChoiceCard}
-                      onPress={() => handleApplyImageReplacement(p.url)}
-                    >
-                      <Text style={styles.presetChoiceText}>{p.label}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-
-                <Text style={styles.modalSubLabel}>{t('customImageUrl')}</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder={t('urlPlaceholder')}
-                  placeholderTextColor="#94a3b8"
-                  value={customImageUrl}
-                  onChangeText={setCustomImageUrl}
-                />
-
-                <View style={styles.modalActions}>
-                  <Pressable
-                    style={styles.modalCancelBtn}
-                    onPress={() => setReplaceModalVisible(false)}
-                  >
-                    <Text style={styles.modalCancelText}>{t('cancel')}</Text>
-                  </Pressable>
-                  <Pressable
-                    style={styles.modalApplyBtn}
-                    onPress={() => handleApplyImageReplacement(customImageUrl)}
-                  >
-                    <Text style={styles.modalApplyText}>{t('applyUrl')}</Text>
-                  </Pressable>
-                </View>
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
-      </KeyboardAvoidingView>
-    </TouchableWithoutFeedback>
+      ) : null}
+    </KeyboardAvoidingView>
   );
 }
 
-
-
+const styles = StyleSheet.create({
+  screenContainer: {
+    flex: 1,
+    backgroundColor: '#0F172A'
+  },
+  workspace: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    backgroundColor: '#0F172A'
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    zIndex: 9999
+  },
+  loadingOverlayText: {
+    marginTop: 16,
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+    textAlign: 'center'
+  }
+});

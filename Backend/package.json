@@ -9,6 +9,7 @@
     "start": "node dist/server.js",
     "seed": "ts-node scripts/seed.ts",
     "bootstrap:super-admin": "ts-node scripts/bootstrap-super-admin.ts",
+    "bootstrap:admins": "ts-node scripts/bootstrap-admins.ts",
     "test:rbac": "ts-node scripts/test-role-authorization.ts"
   },
   "dependencies": {
