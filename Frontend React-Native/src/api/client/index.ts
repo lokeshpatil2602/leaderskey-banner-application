@@ -1,16 +1,18 @@
 import { getApiBaseUrl } from '../../config/env';
+import { resolveApiUrl } from '../../utils/urlResolver';
 
 export type ApiResponse<T> = T;
 
 export const apiRequest = async <T>(path: string, options: RequestInit = {}): Promise<T> => {
   const baseUrl = getApiBaseUrl();
+  const url = resolveApiUrl(baseUrl, path);
   const controller = new AbortController();
   const timeoutMs = 60000; // 60s timeout to support Render cold starts seamlessly
 
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await fetch(`${baseUrl}${path}`, {
+    const response = await fetch(url, {
       ...options,
       signal: controller.signal,
       headers: (() => {

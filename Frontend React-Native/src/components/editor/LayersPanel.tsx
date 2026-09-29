@@ -17,6 +17,23 @@ type LayersPanelProps = {
   onClose: () => void;
 };
 
+const getSemanticLayerName = (el: EditorElement): string => {
+  switch (el.type) {
+    case 'text':
+      return `मजकूर: "${el.content ? el.content.slice(0, 20) : 'Text'}"`;
+    case 'image':
+      return `फोटो: ${el.label || 'Image'}`;
+    case 'sticker':
+      return `स्टिकर: ${el.label || el.content || 'Sticker'}`;
+    case 'shape':
+      return `आकार: ${el.style?.shapeType || el.label || 'Shape'}`;
+    case 'drawing':
+      return 'ब्रश रेखाटन (Drawing)';
+    default:
+      return el.label || el.type;
+  }
+};
+
 export const LayersPanel: React.FC<LayersPanelProps> = ({
   elements,
   selectedElementId,
@@ -72,7 +89,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                   </Text>
                   <View style={styles.layerTextGroup}>
                     <Text style={[styles.layerLabel, isSelected && styles.layerLabelActive]} numberOfLines={1}>
-                      {el.label || el.content || el.type}
+                      {getSemanticLayerName(el)}
                     </Text>
                     <Text style={styles.layerSub}>
                       Layer #{elements.length - idx} • zIndex: {el.zIndex}

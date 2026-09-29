@@ -109,13 +109,14 @@ const styles = StyleSheet.create({
     zIndex: 100
   },
   leftGroup: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    maxWidth: '35%'
+    marginRight: 8
   },
   iconButton: {
     padding: 6,
-    marginRight: 6,
+    marginRight: 4,
     borderRadius: 8
   },
   backIcon: {
@@ -126,7 +127,8 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#111827'
+    color: '#111827',
+    flexShrink: 1
   },
   centerGroup: {
     flexDirection: 'row',

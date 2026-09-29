@@ -5,11 +5,12 @@ import { useTranslation } from '../../i18n/I18nContext';
 type LoginScreenProps = {
   onLogin: (email: string, password: string) => Promise<void>;
   onSwitchToRegister: () => void;
+  onForgotPassword?: () => void;
   isSubmitting?: boolean;
   errorMessage?: string | null;
 };
 
-export function LoginScreen({ onLogin, onSwitchToRegister, isSubmitting = false, errorMessage = null }: LoginScreenProps) {
+export function LoginScreen({ onLogin, onSwitchToRegister, onForgotPassword, isSubmitting = false, errorMessage = null }: LoginScreenProps) {
   const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -43,11 +44,17 @@ export function LoginScreen({ onLogin, onSwitchToRegister, isSubmitting = false,
 
       <Pressable
         style={[styles.button, isSubmitting && styles.buttonDisabled]}
-        onPress={() => onLogin(email.trim(), password)}
+        onPress={() => onLogin(email.trim().toLowerCase(), password)}
         disabled={isSubmitting}
       >
         <Text style={styles.buttonText}>{isSubmitting ? t('signingIn') : t('login')}</Text>
       </Pressable>
+
+      {onForgotPassword ? (
+        <Pressable style={styles.forgotBtn} onPress={onForgotPassword}>
+          <Text style={styles.forgotBtnText}>पासवर्ड विसरलात? (Forgot Password?)</Text>
+        </Pressable>
+      ) : null}
 
       <Text style={styles.footerText}>
         {t('needAccount')}{' '}
@@ -97,6 +104,15 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.7
+  },
+  forgotBtn: {
+    marginTop: 12,
+    alignItems: 'center'
+  },
+  forgotBtnText: {
+    color: '#2563eb',
+    fontSize: 14,
+    fontWeight: '600'
   },
   buttonText: {
     color: '#ffffff',

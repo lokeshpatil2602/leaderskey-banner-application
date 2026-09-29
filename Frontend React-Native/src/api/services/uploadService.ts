@@ -14,7 +14,7 @@ export const uploadImage = async (uri: string): Promise<{ url: string }> => {
   formData.append('image', blob as any, filename);
 
   // Use apiRequest without JSON headers; multipart/form-data will be set automatically.
-  const result = await apiRequest<{ url: string }>('/api/upload', {
+  const result = await apiRequest<{ url: string }>('/upload', {
     method: 'POST',
     body: formData,
     headers: {}

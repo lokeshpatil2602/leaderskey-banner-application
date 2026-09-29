@@ -18,6 +18,8 @@ type EditorCanvasProps = {
   selectedElementId: string | null;
   onSelectElement: (id: string | null) => void;
   onUpdateElementPosition: (id: string, newPosition: { x: number; y: number }) => void;
+  onRotateElement?: (id: string) => void;
+  onResizeElement?: (id: string) => void;
   onDeleteElement: (id: string) => void;
   onDuplicateElement: (id: string) => void;
   isExporting?: boolean;
@@ -34,6 +36,8 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({
   selectedElementId,
   onSelectElement,
   onUpdateElementPosition,
+  onRotateElement,
+  onResizeElement,
   onDeleteElement,
   onDuplicateElement,
   isExporting = false,
@@ -134,6 +138,8 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({
               isSelected={isSelected}
               onSelect={() => onSelectElement(el.id)}
               onUpdatePosition={(pos) => onUpdateElementPosition(el.id, pos)}
+              onRotate={() => onRotateElement?.(el.id)}
+              onResize={() => onResizeElement?.(el.id)}
               onDelete={() => onDeleteElement(el.id)}
               onDuplicate={() => onDuplicateElement(el.id)}
               isExporting={isExporting}
@@ -162,6 +168,8 @@ type CanvasElementItemProps = {
   isSelected: boolean;
   onSelect: () => void;
   onUpdatePosition: (pos: { x: number; y: number }) => void;
+  onRotate?: () => void;
+  onResize?: () => void;
   onDelete: () => void;
   onDuplicate: () => void;
   isExporting: boolean;
@@ -176,6 +184,8 @@ const CanvasElementItem: React.FC<CanvasElementItemProps> = React.memo(
     isSelected,
     onSelect,
     onUpdatePosition,
+    onRotate,
+    onResize,
     onDelete,
     onDuplicate,
     isExporting
@@ -315,6 +325,8 @@ const CanvasElementItem: React.FC<CanvasElementItemProps> = React.memo(
             locked={element.locked}
             onDelete={onDelete}
             onDuplicate={onDuplicate}
+            onRotate={onRotate}
+            onResize={onResize}
           />
         ) : null}
       </View>

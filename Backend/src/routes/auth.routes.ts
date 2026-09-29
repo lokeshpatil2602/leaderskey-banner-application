@@ -3,7 +3,7 @@ import { requireAuth } from '../middleware/auth.middleware';
 import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/apiResponse';
 import { authRateLimiter } from '../middleware/rateLimiter.middleware';
-import { registerUser, loginUser, sanitizeUser } from '../modules/auth/auth.service';
+import { registerUser, loginUser, sanitizeUser, forgotPassword, resetPassword } from '../modules/auth/auth.service';
 
 const router = Router();
 
@@ -39,6 +39,24 @@ router.post(
       token: result.token,
       user: result.user
     });
+  })
+);
+
+router.post(
+  '/forgot-password',
+  asyncHandler(async (req, res) => {
+    const { email } = req.body ?? {};
+    const result = await forgotPassword(email);
+    sendSuccess(res, result.message, result);
+  })
+);
+
+router.post(
+  '/reset-password',
+  asyncHandler(async (req, res) => {
+    const { token, newPassword } = req.body ?? {};
+    const result = await resetPassword(token, newPassword);
+    sendSuccess(res, result.message, result);
   })
 );
 

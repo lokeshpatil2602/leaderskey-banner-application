@@ -99,3 +99,62 @@ export const loginUser = async (email: string, password: string): Promise<{ user
     token
   };
 };
+
+export const forgotPassword = async (email: string): Promise<{ resetToken?: string; message: string }> => {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+    throw new AppError('Please provide a valid email address.', 400);
+  }
+
+  const user = await User.findOne({ email: normalizedEmail });
+  if (!user) {
+    return {
+      message: 'If an account exists with this email, password reset instructions have been provided.'
+    };
+  }
+
+  const crypto = require('crypto');
+  const rawToken = crypto.randomBytes(20).toString('hex');
+  const tokenExpires = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes validity
+
+  user.resetPasswordToken = rawToken;
+  user.resetPasswordExpires = tokenExpires;
+  await user.save();
+
+  return {
+    resetToken: rawToken,
+    message: 'Password reset token generated successfully. Valid for 30 minutes.'
+  };
+};
+
+export const resetPassword = async (token: string, newPassword: string): Promise<{ message: string }> => {
+  const normalizedToken = (token || '').trim();
+
+  if (!normalizedToken) {
+    throw new AppError('Invalid or missing password reset token.', 400);
+  }
+
+  if (!newPassword || newPassword.length < 8) {
+    throw new AppError('New password must be at least 8 characters long.', 400);
+  }
+
+  const user = await User.findOne({
+    resetPasswordToken: normalizedToken,
+    resetPasswordExpires: { $gt: new Date() }
+  });
+
+  if (!user) {
+    throw new AppError('Password reset token is invalid or has expired.', 400);
+  }
+
+  user.password = newPassword;
+  user.resetPasswordToken = undefined;
+  user.resetPasswordExpires = undefined;
+  await user.save();
+
+  return {
+    message: 'Password has been reset successfully. You can now login with your new password.'
+  };
+};
+

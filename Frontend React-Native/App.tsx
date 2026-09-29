@@ -7,9 +7,11 @@ import { LoginScreen } from './src/screens/auth/LoginScreen';
 import { RegisterScreen } from './src/screens/auth/RegisterScreen';
 import { I18nProvider } from './src/i18n/I18nContext';
 
+import { ForgotPasswordScreen } from './src/screens/auth/ForgotPasswordScreen';
+
 function AppContent() {
   const { loading, isAuthenticated, user, login, register, logout } = useAuth();
-  const [showRegister, setShowRegister] = useState(false);
+  const [authView, setAuthView] = useState<'login' | 'register' | 'forgot_password'>('login');
   const [submitting, setSubmitting] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -25,7 +27,11 @@ function AppContent() {
     return <AppNavigator user={user} onLogout={logout} />;
   }
 
-  if (showRegister) {
+  if (authView === 'forgot_password') {
+    return <ForgotPasswordScreen onBackToLogin={() => setAuthView('login')} />;
+  }
+
+  if (authView === 'register') {
     return (
       <RegisterScreen
         onRegister={async (name, email, password) => {
@@ -42,7 +48,7 @@ function AppContent() {
         }}
         onSwitchToLogin={() => {
           setAuthError(null);
-          setShowRegister(false);
+          setAuthView('login');
         }}
         isSubmitting={submitting}
         errorMessage={authError}
@@ -66,7 +72,11 @@ function AppContent() {
       }}
       onSwitchToRegister={() => {
         setAuthError(null);
-        setShowRegister(true);
+        setAuthView('register');
+      }}
+      onForgotPassword={() => {
+        setAuthError(null);
+        setAuthView('forgot_password');
       }}
       isSubmitting={submitting}
       errorMessage={authError}

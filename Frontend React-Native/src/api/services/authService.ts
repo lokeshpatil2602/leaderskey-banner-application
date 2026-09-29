@@ -63,3 +63,22 @@ export const getCurrentUser = async (): Promise<AuthUser> => {
 
   return response.data;
 };
+
+export const forgotPassword = async (email: string): Promise<{ resetToken?: string; message: string }> => {
+  const response = await apiRequest<{ success: boolean; message: string; data: { resetToken?: string; message: string } }>('/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ email })
+  });
+
+  return response.data;
+};
+
+export const resetPassword = async (token: string, newPassword: string): Promise<{ message: string }> => {
+  const response = await apiRequest<{ success: boolean; message: string; data: { message: string } }>('/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify({ token, newPassword })
+  });
+
+  return response.data;
+};
+

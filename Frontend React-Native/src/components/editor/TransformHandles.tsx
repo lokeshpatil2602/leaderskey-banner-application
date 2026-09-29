@@ -8,8 +8,8 @@ type TransformHandlesProps = {
   locked?: boolean;
   onDelete?: () => void;
   onDuplicate?: () => void;
-  onRotateStart?: () => void;
-  onResizeStart?: () => void;
+  onRotate?: () => void;
+  onResize?: () => void;
 };
 
 export const TransformHandles: React.FC<TransformHandlesProps> = ({
@@ -18,7 +18,9 @@ export const TransformHandles: React.FC<TransformHandlesProps> = ({
   rotation = 0,
   locked = false,
   onDelete,
-  onDuplicate
+  onDuplicate,
+  onRotate,
+  onResize
 }) => {
   return (
     <View
@@ -48,6 +50,20 @@ export const TransformHandles: React.FC<TransformHandlesProps> = ({
         </Pressable>
       ) : null}
 
+      {/* Action Handle: Rotate (Top Right) */}
+      {!locked && onRotate ? (
+        <Pressable
+          style={[styles.handleButton, styles.topRight, styles.rotateBtn]}
+          onPress={(e) => {
+            e.stopPropagation();
+            onRotate();
+          }}
+          hitSlop={8}
+        >
+          <Text style={styles.handleIcon}>↻</Text>
+        </Pressable>
+      ) : null}
+
       {/* Action Handle: Duplicate (Bottom Left) */}
       {!locked && onDuplicate ? (
         <Pressable
@@ -62,9 +78,19 @@ export const TransformHandles: React.FC<TransformHandlesProps> = ({
         </Pressable>
       ) : null}
 
-      {/* Corner indicators */}
-      <View style={[styles.cornerDot, styles.topRightDot]} />
-      <View style={[styles.cornerDot, styles.bottomRightDot]} />
+      {/* Action Handle: Resize (Bottom Right) */}
+      {!locked && onResize ? (
+        <Pressable
+          style={[styles.handleButton, styles.bottomRight, styles.resizeBtn]}
+          onPress={(e) => {
+            e.stopPropagation();
+            onResize();
+          }}
+          hitSlop={8}
+        >
+          <Text style={styles.handleIcon}>⤡</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 };
@@ -108,35 +134,34 @@ const styles = StyleSheet.create({
     top: -11,
     left: -11
   },
+  topRight: {
+    top: -11,
+    right: -11
+  },
   bottomLeft: {
     bottom: -11,
     left: -11
   },
+  bottomRight: {
+    bottom: -11,
+    right: -11
+  },
   deleteBtn: {
     backgroundColor: '#EF4444'
   },
+  rotateBtn: {
+    backgroundColor: '#8B5CF6'
+  },
   duplicateBtn: {
     backgroundColor: '#3B82F6'
+  },
+  resizeBtn: {
+    backgroundColor: '#10B981'
   },
   handleIcon: {
     color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '800',
     textAlign: 'center'
-  },
-  cornerDot: {
-    position: 'absolute',
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#2563EB'
-  },
-  topRightDot: {
-    top: -4,
-    right: -4
-  },
-  bottomRightDot: {
-    bottom: -4,
-    right: -4
   }
 });

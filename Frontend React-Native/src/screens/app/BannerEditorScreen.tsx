@@ -199,6 +199,35 @@ export function BannerEditorScreen({ template, onCancel, onSaved }: BannerEditor
     [present, pushSnapshot]
   );
 
+  const handleRotateElement = useCallback(
+    (id: string) => {
+      const updated = present.elements.map((el) => {
+        if (el.id === id) {
+          const nextRotation = ((el.rotation || 0) + 15) % 360;
+          return { ...el, rotation: nextRotation };
+        }
+        return el;
+      });
+      pushSnapshot({ ...present, elements: updated });
+    },
+    [present, pushSnapshot]
+  );
+
+  const handleResizeElement = useCallback(
+    (id: string) => {
+      const updated = present.elements.map((el) => {
+        if (el.id === id) {
+          const newWidth = Math.min(95, Math.max(15, el.size.width + 5));
+          const newHeight = Math.min(95, Math.max(10, el.size.height + 5));
+          return { ...el, size: { width: newWidth, height: newHeight } };
+        }
+        return el;
+      });
+      pushSnapshot({ ...present, elements: updated });
+    },
+    [present, pushSnapshot]
+  );
+
   // Text Add / Update
   const handleAddText = useCallback(
     (text: string, style?: any) => {
@@ -645,6 +674,8 @@ export function BannerEditorScreen({ template, onCancel, onSaved }: BannerEditor
             }
           }}
           onUpdateElementPosition={handleUpdateElementPosition}
+          onRotateElement={handleRotateElement}
+          onResizeElement={handleResizeElement}
           onDeleteElement={handleDeleteElement}
           onDuplicateElement={handleDuplicateElement}
           isExporting={isExporting}
